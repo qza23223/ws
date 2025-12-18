@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Build a Boat Adventure: Ultimate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { margin: 0; overflow: hidden; user-select: none; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #000; }
+        #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+        }
+
+        .interactive { pointer-events: auto; }
+
+        /* HUD */
+        #top-bar {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+        }
+
+        .currency-box {
+            background: rgba(255, 215, 0, 0.2);
+            border: 2px solid #ffd700;
+            color: #ffd700;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-shadow: 1px 1px 0 #000;
+            backdrop-filter: blur(4px);
+        }
+
+        /* Side Menus */
+        .side-menu {
+            position: absolute;
+            top: 80px;
+            bottom: 100px;
+            width: 340px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: auto;
+            overflow: hidden;
+            z-index: 20;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        #shop-menu { right: -360px; } 
+        #shop-menu.open { right: 20px; }
+        
+        #custom-menu { left: -360px; }
+        #custom-menu.open { left: 20px; }
+
+        .menu-header {
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            font-weight: 800;
+            color: white;
+            text-transform: uppercase;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        .menu-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.1); overflow-x:auto; scrollbar-width:none;}
+        .menu-tab { flex: 1; padding: 10px; text-align: center; color: #888; cursor: pointer; font-size: 11px; font-weight: bold; white-space:nowrap;}
+        .menu-tab.active { color: white; background: rgba(255,255,255,0.1); }
+
+        .menu-content {
+            padding: 10px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        /* Shop Grid */
+        .shop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .shop-item {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+            min-height: 80px;
+        }
+        .shop-item:hover { background: rgba(255,255,255,0.15); transform: translateY(-2px); border-color: #fbbf24; }
+        .shop-item .cost { color: #fbbf24; font-size: 10px; font-weight: bold; margin-top: auto; }
+        .shop-item .name { font-size: 10px; font-weight: bold; margin-bottom: 2px; line-height: 1.1; }
+        .shop-item i { font-size: 20px; margin-bottom: 4px; }
+
+        /* Chests */
+        .chest-btn {
+            width: 100%; margin-bottom: 10px; padding: 15px;
+            border-radius: 8px; border: 2px solid rgba(255,255,255,0.1);
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; transition: 0.2s; position: relative; overflow: hidden;
+        }
+        .chest-btn:hover { transform: scale(1.02); }
+        .chest-common { background: linear-gradient(45deg, #555, #777); border-color: #999; }
+        .chest-rare { background: linear-gradient(45deg, #1e3a8a, #3b82f6); border-color: #60a5fa; }
+        .chest-epic { background: linear-gradient(45deg, #581c87, #a855f7); border-color: #d8b4fe; }
+        .chest-legendary { background: linear-gradient(45deg, #78350f, #fbbf24); border-color: #fcd34d; }
+
+        /* Bottom Bar */
+        #bottom-bar {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+        }
+
+        #inventory-bar {
+            display: flex; gap: 6px; overflow-x: auto; max-width: 90vw;
+            padding: 5px; scrollbar-width: none;
+        }
+
+        .inv-slot {
+            min-width: 50px; height: 60px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 2px solid #475569;
+            border-radius: 6px;
+            position: relative;
+            cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: 0.2s;
+        }
+        .inv-slot.active { border-color: #fbbf24; box-shadow: 0 0 8px #fbbf24; background: rgba(251, 191, 36, 0.2); }
+        .inv-slot .qty { position: absolute; top: -4px; right: -4px; background: #ef4444; color: white; font-size: 9px; padding: 1px 5px; border-radius: 8px; }
+        
+        .game-btn {
+            padding: 10px 24px; font-weight: 800; color: white;
+            border-radius: 8px; cursor: pointer; text-transform: uppercase;
+            border: none; box-shadow: 0 4px 0 rgba(0,0,0,0.3); transition: transform 0.1s;
+        }
+        .game-btn:active { transform: translateY(4px); box-shadow: none; }
+        .btn-green { background: #22c55e; box-shadow: 0 4px 0 #15803d; }
+        .btn-red { background: #ef4444; box-shadow: 0 4px 0 #b91c1c; }
+
+        /* Main Menu (M) */
+        #main-menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(5px);
+            display: none; justify-content: center; align-items: center; z-index: 50;
+        }
+        .menu-box {
+            background: #1e293b; width: 500px; border-radius: 16px;
+            border: 1px solid #334155; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .menu-title { padding: 20px; text-align: center; font-size: 24px; font-weight: 900; color: white; background: #0f172a; }
+        .player-list { padding: 20px; max-height: 200px; overflow-y: auto; color: #cbd5e1; }
+        .player-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #334155; }
+        .player-team-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+
+        /* Notifications */
+        #notification-area {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; gap: 10px; pointer-events: none; z-index: 60;
+        }
+        .toast {
+            background: rgba(0,0,0,0.8); color: #fbbf24; border: 1px solid #fbbf24;
+            padding: 10px 20px; border-radius: 8px; font-weight: bold;
+            animation: fadeUp 2s forwards;
+        }
+        @keyframes fadeUp {
+            0% { opacity: 0; transform: translateY(20px); }
+            10% { opacity: 1; transform: translateY(0); }
+            80% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+
+        #end-screen { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); flex-direction:column; justify-content:center; align-items:center; color:white; z-index:100; }
+        
+        .code-input { background: #334155; border: 1px solid #475569; padding: 8px; color: white; width: 70%; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container"></div>
+
+    <div id="notification-area"></div>
+
+    <!-- Main Menu Overlay -->
+    <div id="main-menu" class="interactive">
+        <div class="menu-box">
+            <div class="menu-title">MENU (Press M to Close)</div>
+            <div class="p-4 bg-slate-800 text-white font-bold border-b border-slate-700">MULTIPLAYER LOBBY</div>
+            <div class="player-list" id="player-list-content">
+                <!-- Players injected here -->
+            </div>
+            <div class="p-4 bg-slate-900 border-t border-slate-700">
+                <div class="text-xs text-gray-400 mb-1">REDEEM CODE</div>
+                <div class="flex gap-2">
+                    <input type="text" id="code-input" class="code-input" placeholder="Enter Code (e.g. MERRYXMAS)">
+                    <button class="game-btn btn-green" style="padding: 5px 15px; font-size: 12px;" onclick="redeemCode()">Redeem</button>
+                </div>
+            </div>
+            <div class="p-4 text-center text-xs text-gray-400 border-t border-slate-700">
+                WASD: Move | SPACE: Jump | F: Activate/Boost | M: Menu
+            </div>
+            <div class="p-4 flex justify-center">
+                <button class="game-btn btn-green" onclick="toggleMainMenu()">Resume Game</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <!-- Top HUD -->
+        <div id="top-bar" class="interactive">
+            <div class="flex flex-col gap-1">
+                <div class="text-white font-black text-xl italic tracking-wider drop-shadow-lg">BUILD A BOAT</div>
+                <div class="flex gap-2">
+                    <div id="status-text" class="text-xs text-yellow-300 font-bold bg-black/50 px-2 py-1 rounded">BUILD MODE</div>
+                    <div id="biome-text" class="text-xs text-cyan-300 font-bold bg-black/50 px-2 py-1 rounded hidden">GRASSLANDS</div>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 items-center">
+                <div class="currency-box">
+                    <i class="fas fa-coins"></i> <span id="gold-display">500</span>
+                </div>
+                <button class="icon-btn w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:scale-110 transition" onclick="toggleMenu('custom-menu')" title="Avatar"><i class="fas fa-user-edit"></i></button>
+                <button class="icon-btn w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:scale-110 transition" onclick="toggleMenu('shop-menu')" title="Shop"><i class="fas fa-shopping-cart"></i></button>
+                <button class="icon-btn w-10 h-10 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:scale-110 transition" onclick="toggleMainMenu()" title="Menu"><i class="fas fa-bars"></i></button>
+            </div>
+        </div>
+
+        <!-- Avatar Menu -->
+        <div id="custom-menu" class="side-menu">
+            <div class="menu-header">Avatar Customization</div>
+            <div class="menu-content text-white text-sm p-4">
+                <div class="mb-4">
+                    <div class="font-bold mb-2 text-yellow-400">COLORS</div>
+                    <div class="flex justify-between items-center mb-2"><span>Head</span> <input type="color" id="col-head" value="#ffd700" onchange="updatePlayerAppearance()"></div>
+                    <div class="flex justify-between items-center mb-2"><span>Torso</span> <input type="color" id="col-torso" value="#0000ff" onchange="updatePlayerAppearance()"></div>
+                    <div class="flex justify-between items-center"><span>Legs</span> <input type="color" id="col-legs" value="#00ff00" onchange="updatePlayerAppearance()"></div>
+                </div>
+                <div class="mb-4">
+                    <div class="font-bold mb-2 text-cyan-400">ACCESSORY</div>
+                    <div class="flex gap-2 justify-center">
+                        <button class="bg-slate-700 p-2 rounded hover:bg-slate-600" onclick="setAccessory(-1)"><i class="fas fa-chevron-left"></i></button>
+                        <span id="acc-name" class="w-24 text-center font-bold">None</span>
+                        <button class="bg-slate-700 p-2 rounded hover:bg-slate-600" onclick="setAccessory(1)"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="font-bold mb-2 text-green-400">TEAM</div>
+                <div class="flex gap-2 justify-center">
+                    <div class="w-6 h-6 rounded-full border-2 border-white cursor-pointer bg-white" onclick="setTeam('white')"></div>
+                    <div class="w-6 h-6 rounded-full border-2 border-white cursor-pointer bg-red-500" onclick="setTeam('red')"></div>
+                    <div class="w-6 h-6 rounded-full border-2 border-white cursor-pointer bg-blue-500" onclick="setTeam('blue')"></div>
+                    <div class="w-6 h-6 rounded-full border-2 border-white cursor-pointer bg-green-500" onclick="setTeam('green')"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shop Menu -->
+        <div id="shop-menu" class="side-menu">
+            <div class="menu-header">Block Shop</div>
+            <div class="menu-tabs">
+                <div class="menu-tab active" onclick="switchShopTab('basic')">BLOCKS</div>
+                <div class="menu-tab" onclick="switchShopTab('mech')">MECH</div>
+                <div class="menu-tab" onclick="switchShopTab('xmas')">XMAS</div>
+                <div class="menu-tab" onclick="switchShopTab('chests')">CHESTS</div>
+            </div>
+            <div class="menu-content">
+                <div id="shop-basic" class="shop-grid"></div>
+                <div id="shop-mech" class="shop-grid" style="display:none;"></div>
+                <div id="shop-xmas" class="shop-grid" style="display:none;"></div>
+                <div id="shop-chests" style="display:none;">
+                    <div class="chest-btn chest-common" onclick="buyChest('common')">
+                        <div class="font-bold text-white"><i class="fas fa-box"></i> Common</div>
+                        <div class="text-xs text-white">5 Blocks <br><span class="text-yellow-300">50 Gold</span></div>
+                    </div>
+                    <div class="chest-btn chest-rare" onclick="buyChest('rare')">
+                        <div class="font-bold text-white"><i class="fas fa-gem"></i> Rare</div>
+                        <div class="text-xs text-white">10 Blocks <br><span class="text-yellow-300">100 Gold</span></div>
+                    </div>
+                    <div class="chest-btn chest-epic" onclick="buyChest('epic')">
+                        <div class="font-bold text-white"><i class="fas fa-star"></i> Epic</div>
+                        <div class="text-xs text-white">15 Blocks <br><span class="text-yellow-300">250 Gold</span></div>
+                    </div>
+                    <div class="chest-btn chest-legendary" onclick="buyChest('legendary')">
+                        <div class="font-bold text-white"><i class="fas fa-crown"></i> Legendary</div>
+                        <div class="text-xs text-white">30 Blocks <br><span class="text-yellow-300">500 Gold</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div id="bottom-bar" class="interactive">
+            <div id="inventory-bar"></div>
+            <div class="flex gap-4 mt-2">
+                <button id="reset-btn" class="game-btn btn-red" onclick="resetBoat()">Clear</button>
+                <button id="launch-btn" class="game-btn btn-green" onclick="launchBoat()">LAUNCH</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- End Screen -->
+    <div id="end-screen" class="interactive">
+        <h1 id="end-title" class="text-5xl font-extrabold mb-2 text-yellow-400">TREASURE FOUND!</h1>
+        <p id="end-msg" class="text-xl mb-4 text-gray-300">You reached the end!</p>
+        <div class="text-2xl font-bold text-yellow-400 mb-8">+<span id="gold-earned">0</span> Gold</div>
+        <button class="game-btn btn-green" onclick="restartGame()">Back to Base</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Init ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        let userId = null;
+        let remotePlayers = {}; 
+
+        // --- Configuration ---
+        const CONFIG = {
+            gridSize: 14,
+            cellSize: 2,
+            riverLength: 1600,
+            riverWidth: 100,
+            fogColor: 0x87CEEB,
+            waterColor: 0x0099ff
+        };
+
+        const BIOMES = [
+            { start: 0, end: 400, name: "Grasslands", ground: 0x2d5a27, wall: 0x5c4033, sky: 0x87CEEB },
+            { start: 400, end: 800, name: "Desert", ground: 0xE6C288, wall: 0xC2B280, sky: 0xFFDAB9 },
+            { start: 800, end: 1200, name: "Frozen Tundra", ground: 0xFFFFFF, wall: 0xA5F2F3, sky: 0xE0FFFF },
+            { start: 1200, end: 1600, name: "Alien Zone", ground: 0x220022, wall: 0x440044, sky: 0x110011 },
+        ];
+
+        const ACCESSORIES = [
+            { id: 0, name: "None" }, { id: 1, name: "Top Hat" }, { id: 2, name: "Sunglasses" },
+            { id: 3, name: "Halo" }, { id: 4, name: "Headphones" }
+        ];
+
+        // Expanded Block List
+        const BLOCK_TYPES = {
+            // Basic
+            wood: { name: 'Wood', cat:'basic', icon:'cube', color: 0x8B4513, hp: 1, cost: 5, rarity: 50 },
+            stone: { name: 'Stone', cat:'basic', icon:'cube', color: 0x78909c, hp: 3, cost: 15, rarity: 30 },
+            gold: { name: 'Gold', cat:'basic', icon:'cube', color: 0xffd700, hp: 6, cost: 50, rarity: 10 },
+            glass: { name: 'Window', cat:'basic', icon:'window-maximize', color: 0x88ccff, hp: 1, cost: 10, opacity:0.5 },
+            // Seats
+            seat: { name: 'Pilot Seat', cat:'basic', icon:'chair', color: 0xef4444, hp: 2, cost: 20, rarity: 5, limit: 1 },
+            chair: { name: 'Chair', cat:'basic', icon:'chair', color: 0x8B4513, hp: 1, cost: 10 },
+            throne: { name: 'Throne', cat:'basic', icon:'crown', color: 0x990000, hp: 5, cost: 200 },
+            // Movement/Mech
+            thruster: { name: 'Thruster', cat:'mech', icon:'rocket', color: 0x333333, hp: 2, cost: 100, func: 'thrust' },
+            jet: { name: 'Jet Turbine', cat:'mech', icon:'fighter-jet', color: 0x666666, hp: 4, cost: 250, func: 'jet' },
+            motor: { name: 'Boat Motor', cat:'mech', icon:'fan', color: 0x444444, hp: 3, cost: 150, func: 'motor' },
+            servo: { name: 'Servo', cat:'mech', icon:'sync', color: 0x999999, hp: 2, cost: 80, func: 'servo' },
+            wheel: { name: 'Wheel', cat:'mech', icon:'car-side', color: 0x222222, hp: 3, cost: 50, func: 'drive' },
+            balloon: { name: 'Balloon', cat:'mech', icon:'soap', color: 0xff69b4, hp: 1, cost: 40, func: 'lift' }, 
+            wing: { name: 'Wing', cat:'mech', icon:'plane', color: 0xffffff, hp: 2, cost: 75, func: 'glide' },
+            suspension: { name: 'Suspension', cat:'mech', icon:'compress-alt', color: 0x555555, hp: 3, cost: 60, func: 'dampen' },
+            parachute: { name: 'Parachute', cat:'mech', icon:'parachute-box', color: 0xffaa00, hp: 1, cost: 120, func: 'slow_fall' },
+            // Tools/Interaction
+            magnet: { name: 'Magnet', cat:'mech', icon:'magnet', color: 0xff0000, hp: 3, cost: 150, func: 'magnet' },
+            glue: { name: 'Glue Block', cat:'basic', icon:'flask', color: 0xffffaa, hp: 10, cost: 50 },
+            // Weapons/Explosives
+            tnt: { name: 'TNT', cat:'mech', icon:'bomb', color: 0xff0000, hp: 1, cost: 30, func: 'explode' },
+            cannon: { name: 'Cannon', cat:'mech', icon:'bomb', color: 0x111111, hp: 5, cost: 150, func: 'shoot' },
+            minigun: { name: 'Mini Gun', cat:'mech', icon:'circle-notch', color: 0x222222, hp: 4, cost: 400, func: 'shoot_fast' },
+            spike: { name: 'Spike Trap', cat:'mech', icon:'exclamation-triangle', color: 0x888888, hp: 4, cost: 40 },
+            // Special/Decor
+            shield: { name: 'Shield Gen', cat:'mech', icon:'shield-alt', color: 0x00ffff, hp: 2, cost: 150, opacity: 0.4, func:'shield' },
+            lamp: { name: 'Lamp', cat:'basic', icon:'lightbulb', color: 0xffffaa, hp: 1, cost: 20, func: 'light' },
+            flag: { name: 'Flag', cat:'basic', icon:'flag', color: 0xffffff, hp: 1, cost: 25 },
+            // Xmas
+            tree: { name: 'Xmas Tree', cat:'xmas', icon:'tree', color: 0x006600, hp: 2, cost: 100 },
+            present: { name: 'Present', cat:'xmas', icon:'gift', color: 0xff0000, hp: 2, cost: 50 },
+            candy: { name: 'Candy Cane', cat:'xmas', icon:'candy-cane', color: 0xffffff, hp: 2, cost: 40 },
+        };
+
+        // State
+        let playerData = {
+            gold: 1000,
+            team: 'white',
+            accessory: 0,
+            inventory: {},
+            colors: { head: '#ffd700', torso: '#0000ff', legs: '#00ff00' },
+            codesRedeemed: []
+        };
+        // Init Inventory
+        for(let k in BLOCK_TYPES) playerData.inventory[k] = 0;
+        playerData.inventory.wood = 30;
+        playerData.inventory.seat = 1;
+
+        let gameState = {
+            mode: 'build',
+            selectedBlock: 'wood',
+            boatBlocks: [],
+            hasSeat: false,
+            velocity: new THREE.Vector3(),
+            angularVelocity: 0,
+            currentBiomeName: ''
+        };
+
+        let scene, camera, renderer, raycaster, mouse;
+        let waterMesh, buildGridHelper, boatGroup, playerGroup;
+        let obstacles = [];
+        let keys = { w: false, a: false, s: false, d: false, " ": false, f: false };
+        let camAngleX = 0.5, camAngleY = 0, camDist = 25;
+        let playerVel = new THREE.Vector3();
+        let isGrounded = true;
+        let isDragging = false;
+        let prevMouse = {x:0, y:0};
+
+        // --- Initialization ---
+        async function init() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+                else await signInAnonymously(auth);
+                userId = auth.currentUser.uid;
+                setupMultiplayer();
+            } catch (e) { console.error("Auth error", e); }
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(CONFIG.fogColor);
+            scene.fog = new THREE.Fog(CONFIG.fogColor, 20, 250);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+            const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+            sun.position.set(50, 150, 50);
+            sun.castShadow = true;
+            sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+            scene.add(sun);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            createEnvironment();
+            createBuildZone();
+            createPlayer();
+            updateUI();
+
+            window.addEventListener('resize', onResize);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mousedown', onMouseDown);
+            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('keydown', e => handleKey(e, true));
+            document.addEventListener('keyup', e => handleKey(e, false));
+
+            animate();
+        }
+
+        // --- Logic: Build Visuals ---
+        function createBlockMesh(type) {
+            const data = BLOCK_TYPES[type];
+            let mesh = new THREE.Mesh(new THREE.BoxGeometry(1.9,1.9,1.9), new THREE.MeshStandardMaterial({color:data.color, transparent:!!data.opacity, opacity:data.opacity||1}));
+            
+            // Custom Geometries for specific items
+            if(type.includes('seat') || type==='chair' || type==='throne') {
+                const back = new THREE.Mesh(new THREE.BoxGeometry(1.9,2,0.5), mesh.material); back.position.set(0,0.5,-0.7); mesh.add(back);
+            }
+            else if(type==='thruster' || type==='jet' || type==='motor') {
+                const n = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.8,1), new THREE.MeshStandardMaterial({color:0x111111})); n.rotation.x=Math.PI/2; n.position.z=0.8; mesh.add(n);
+            }
+            else if(type==='balloon') {
+                const b = new THREE.Mesh(new THREE.DodecahedronGeometry(1.5), new THREE.MeshStandardMaterial({color:data.color})); b.position.y=2.5; mesh.add(b);
+                const s = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.5), new THREE.MeshBasicMaterial({color:0xffffff})); s.position.y=1.25; mesh.add(s);
+            }
+            else if(type==='wing') {
+                const w = new THREE.Mesh(new THREE.BoxGeometry(4,0.2,2), mesh.material); mesh.add(w);
+            }
+            else if(type==='wheel') {
+                const w = new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,0.5,16), new THREE.MeshStandardMaterial({color:0x111111})); w.rotation.z=Math.PI/2; mesh.add(w);
+            }
+            else if(type==='cannon' || type==='minigun') {
+                const b = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.4,2), new THREE.MeshStandardMaterial({color:0x222222})); b.rotation.x=Math.PI/2; b.position.y=0.5; mesh.add(b);
+            }
+            else if(type==='tree') { // Xmas
+                const t = new THREE.Mesh(new THREE.ConeGeometry(1.5,3,8), new THREE.MeshStandardMaterial({color:0x006600})); t.position.y=1; mesh.add(t);
+            }
+            else if(type==='present') { // Xmas
+                const r = new THREE.Mesh(new THREE.BoxGeometry(2,0.2,2), new THREE.MeshStandardMaterial({color:0xffff00})); mesh.add(r);
+                const r2 = new THREE.Mesh(new THREE.BoxGeometry(0.2,2,2), new THREE.MeshStandardMaterial({color:0xffff00})); mesh.add(r2);
+            }
+            else if(type==='tnt') {
+                const t = new THREE.Mesh(new THREE.BoxGeometry(1.9,1.9,1.9), new THREE.MeshStandardMaterial({color:0xff0000}));
+                mesh = t; // overwrite
+                // Text texture would go here, simple red box for now
+            }
+            
+            mesh.castShadow = true;
+            return mesh;
+        }
+
+        // --- Logic: Sailing Physics ---
+        function updateSailMode() {
+            if(!boatGroup) return;
+
+            // Stats
+            const counts = {};
+            for(let k in BLOCK_TYPES) counts[k] = 0;
+            gameState.boatBlocks.forEach(b => counts[b.type]++);
+
+            const g = -0.01;
+            let accel = new THREE.Vector3(0, g, 0);
+            
+            // 1. Buoyancy
+            const baseLift = 0.02 + (counts.balloon * 0.005);
+            if(boatGroup.position.y < 0.5) accel.y += baseLift;
+
+            // 2. Propulsion
+            let thrust = 0.002; // drift
+            thrust += counts.motor * 0.01; 
+            thrust += counts.wheel * 0.005; // passive
+            
+            if(keys.f) {
+                thrust += (counts.thruster * 0.02) + (counts.jet * 0.08);
+            }
+
+            // 3. Specials
+            if(counts.parachute > 0 && gameState.velocity.y < -0.05) accel.y += 0.02; // Slow fall
+            if(counts.magnet > 0) { // Keep center
+                if(boatGroup.position.x > 5) accel.x -= 0.005;
+                if(boatGroup.position.x < -5) accel.x += 0.005;
+            }
+
+            const fwd = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), boatGroup.rotation.y);
+            accel.add(fwd.multiplyScalar(thrust));
+
+            // 4. Steering
+            let turnSpeed = 0.01 + (counts.servo * 0.005);
+            if(keys.a) gameState.angularVelocity += turnSpeed;
+            if(keys.d) gameState.angularVelocity -= turnSpeed;
+            gameState.angularVelocity *= 0.9;
+            boatGroup.rotation.y += gameState.angularVelocity;
+
+            gameState.velocity.add(accel);
+            gameState.velocity.multiplyScalar(0.98); // Drag
+            boatGroup.position.add(gameState.velocity);
+
+            // 5. Combat/Collision
+            const boatBox = new THREE.Box3().setFromObject(boatGroup);
+            const localObs = obstacles.filter(o => Math.abs(o.mesh.position.z - boatGroup.position.z) < 50);
+            
+            // Auto-fire weapons
+            if(counts.cannon > 0 || counts.minigun > 0) {
+                localObs.forEach((obs, idx) => {
+                    if(obs.mesh.position.distanceTo(boatGroup.position) < 20) {
+                        // Destroy rock (simulate hit)
+                        if(Math.random() < 0.05) { // Fire rate
+                            scene.remove(obs.mesh);
+                            obstacles.splice(obstacles.indexOf(obs), 1);
+                            // FX
+                            const exp = new THREE.Mesh(new THREE.SphereGeometry(2), new THREE.MeshBasicMaterial({color:0xffaa00}));
+                            exp.position.copy(obs.mesh.position);
+                            scene.add(exp);
+                            setTimeout(()=>scene.remove(exp), 200);
+                        }
+                    }
+                });
+            }
+
+            for(let obs of localObs) {
+                if(boatBox.intersectsBox(obs.box)) {
+                     // TNT Check
+                     const tntBlock = gameState.boatBlocks.find(b => b.type==='tnt');
+                     if(tntBlock) {
+                         // Explode rock
+                         scene.remove(obs.mesh);
+                         obstacles.splice(obstacles.indexOf(obs), 1);
+                         // Remove TNT
+                         boatGroup.remove(tntBlock.mesh);
+                         gameState.boatBlocks = gameState.boatBlocks.filter(b => b !== tntBlock);
+                         // FX
+                         const boom = new THREE.Mesh(new THREE.SphereGeometry(5), new THREE.MeshBasicMaterial({color:0xff0000}));
+                         boom.position.copy(boatGroup.position);
+                         scene.add(boom); setTimeout(()=>scene.remove(boom), 300);
+                         continue; // Skip damage
+                     }
+
+                     // Regular Collision
+                     for(let i=gameState.boatBlocks.length-1; i>=0; i--) {
+                        const b = gameState.boatBlocks[i];
+                        const wp = b.mesh.getWorldPosition(new THREE.Vector3());
+                        if(wp.distanceTo(obs.mesh.position) < 3) {
+                            let dmg = 1;
+                            if(counts.suspension > 0) dmg = 0.5; // Reduce dmg
+                            if(b.type === 'shield') dmg = 0.2;
+
+                            b.hp -= dmg;
+                            b.mesh.material.emissive.setHex(0xff0000);
+                            setTimeout(()=>b.mesh && b.mesh.material.emissive.setHex(0x000000), 100);
+                            if(b.hp <= 0) {
+                                boatGroup.remove(b.mesh);
+                                gameState.boatBlocks.splice(i,1);
+                                if(b.type.includes('seat')) endGame(false);
+                            }
+                            gameState.velocity.multiplyScalar(0.6); 
+                        }
+                     }
+                }
+            }
+            
+            const co = new THREE.Vector3(0,15,-25).applyMatrix4(boatGroup.matrixWorld);
+            camera.position.lerp(co, 0.1);
+            camera.lookAt(boatGroup.position);
+
+            if(boatGroup.position.z > CONFIG.riverLength - 20) endGame(true);
+            if(gameState.boatBlocks.length === 0) endGame(false);
+        }
+
+        // --- Interactions ---
+        function onMouseDown(e) {
+            if(e.target.closest('.interactive') || e.target.closest('.side-menu')) return;
+            if(e.button === 2) { isDragging = true; return; }
+            if(gameState.mode === 'build' && e.button === 0) {
+                raycaster.setFromCamera(mouse, camera);
+                // Shift+Click Delete
+                if(keys["shift"] || keys["control"]) {
+                    const hits = raycaster.intersectObjects(scene.children, true);
+                    for(let h of hits) {
+                        let obj = h.object; while(obj.parent && obj.parent !== scene) obj = obj.parent;
+                        const idx = gameState.boatBlocks.findIndex(b=>b.mesh === obj);
+                        if(idx > -1) {
+                            playerData.inventory[gameState.boatBlocks[idx].type]++;
+                            if(gameState.boatBlocks[idx].type.includes('seat')) gameState.hasSeat=false;
+                            scene.remove(obj);
+                            gameState.boatBlocks.splice(idx,1);
+                            updateUI();
+                            return;
+                        }
+                    }
+                    return;
+                }
+                // Build
+                const hits = raycaster.intersectObject(buildGridHelper);
+                if(hits.length && playerData.inventory[gameState.selectedBlock] > 0) {
+                    const h = hits[0];
+                    const gx = Math.floor(h.point.x/CONFIG.cellSize);
+                    const gz = Math.floor(h.point.z/CONFIG.cellSize);
+                    if(Math.abs(gx)<CONFIG.gridSize/2 && Math.abs(gz)<CONFIG.gridSize/2 && !gameState.boatBlocks.some(b=>b.gx===gx && b.gz===gz)) {
+                        const type = gameState.selectedBlock;
+                        if(type.includes('seat') && gameState.hasSeat) return alert("One pilot seat only!");
+                        
+                        const mesh = createBlockMesh(type);
+                        mesh.position.set(gx*2+1, 1, gz*2+1);
+                        scene.add(mesh);
+                        
+                        gameState.boatBlocks.push({mesh, type, gx, gz, hp:BLOCK_TYPES[type].hp});
+                        playerData.inventory[type]--;
+                        if(type.includes('seat')) gameState.hasSeat = true;
+                        updateUI();
+                    }
+                }
+            }
+        }
+
+        // --- Environment ---
+        function createEnvironment() {
+            // Water
+            const wGeo = new THREE.PlaneGeometry(CONFIG.riverWidth, CONFIG.riverLength + 200);
+            const wMat = new THREE.MeshPhongMaterial({ color: CONFIG.waterColor, transparent: true, opacity: 0.8 });
+            waterMesh = new THREE.Mesh(wGeo, wMat);
+            waterMesh.rotation.x = -Math.PI/2; 
+            waterMesh.position.set(0, -0.5, CONFIG.riverLength/2 - 50);
+            scene.add(waterMesh);
+
+            // Grass Base Plate at Start
+            const baseGeo = new THREE.PlaneGeometry(CONFIG.riverWidth + 60, 100);
+            const baseMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27 });
+            const base = new THREE.Mesh(baseGeo, baseMat);
+            base.rotation.x = -Math.PI/2;
+            base.position.set(0, -0.6, 0); // Under dock
+            base.receiveShadow = true;
+            scene.add(base);
+
+            // Generate Biomes
+            BIOMES.forEach(biome => {
+                const len = biome.end - biome.start;
+                const centerZ = biome.start + len/2;
+                const floorMat = new THREE.MeshStandardMaterial({ color: biome.ground });
+                const leftBank = new THREE.Mesh(new THREE.BoxGeometry(50, 20, len), floorMat);
+                leftBank.position.set(-CONFIG.riverWidth/2 - 25, 5, centerZ);
+                scene.add(leftBank);
+                const rightBank = new THREE.Mesh(new THREE.BoxGeometry(50, 20, len), floorMat);
+                rightBank.position.set(CONFIG.riverWidth/2 + 25, 5, centerZ);
+                scene.add(rightBank);
+                generateObstacles(biome.start, biome.end, biome.name);
+            });
+
+            // End Treasure
+            const tGroup = new THREE.Group();
+            const chest = new THREE.Mesh(new THREE.BoxGeometry(8, 6, 6), new THREE.MeshStandardMaterial({color:0xffd700, metalness:0.8}));
+            chest.position.y = 3; tGroup.add(chest);
+            tGroup.position.set(0, 0, CONFIG.riverLength - 20);
+            scene.add(tGroup);
+        }
+
+        function generateObstacles(startZ, endZ, biomeType) {
+            const count = Math.floor((endZ - startZ) / 15);
+            const mat = new THREE.MeshStandardMaterial({ color: 0x555555 });
+            for(let i=0; i<count; i++) {
+                let mesh;
+                if(biomeType === "Grasslands") mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1.5), mat);
+                else if(biomeType === "Desert") mesh = new THREE.Mesh(new THREE.ConeGeometry(2, 3, 4), new THREE.MeshStandardMaterial({color: 0xC2B280}));
+                else if(biomeType === "Frozen Tundra") mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), new THREE.MeshStandardMaterial({color: 0xA5F2F3, transparent:true, opacity:0.9}));
+                else mesh = new THREE.Mesh(new THREE.TorusKnotGeometry(1, 0.3), new THREE.MeshStandardMaterial({color: 0x440044}));
+                
+                mesh.position.set((Math.random()-0.5)*(CONFIG.riverWidth-10), 0, startZ + Math.random()*(endZ-startZ));
+                if(mesh.position.z < 50) continue;
+                mesh.castShadow = true;
+                scene.add(mesh);
+                obstacles.push({ mesh, box: new THREE.Box3().setFromObject(mesh) });
+            }
+        }
+
+        // --- Other Systems ---
+        window.buyChest = function(tier) {
+            const costs = { common: 50, rare: 100, epic: 250, legendary: 500 };
+            const counts = { common: 5, rare: 10, epic: 15, legendary: 30 };
+            const cost = costs[tier];
+            if(playerData.gold >= cost) {
+                playerData.gold -= cost;
+                let drops = [];
+                const pool = Object.keys(BLOCK_TYPES);
+                for(let i=0; i<counts[tier]; i++) {
+                    const item = pool[Math.floor(Math.random()*pool.length)];
+                    playerData.inventory[item]++;
+                    drops.push(BLOCK_TYPES[item].name);
+                }
+                updateUI();
+                showNotification(`Opened ${tier} chest!`);
+            } else showNotification("Not enough Gold!", true);
+        }
+
+        window.redeemCode = function() {
+            const input = document.getElementById('code-input');
+            const code = input.value.toUpperCase();
+            if(playerData.codesRedeemed.includes(code)) return showNotification("Already redeemed!", true);
+            
+            if(code === "MERRYXMAS") {
+                playerData.gold += 500;
+                playerData.inventory.tree += 2;
+                playerData.inventory.present += 5;
+                showNotification("Redeemed! +500 Gold & Xmas items");
+            } else if(code === "LAUNCH") {
+                playerData.gold += 100;
+                showNotification("Redeemed! +100 Gold");
+            } else {
+                return showNotification("Invalid Code", true);
+            }
+            playerData.codesRedeemed.push(code);
+            input.value = "";
+            updateUI();
+        }
+
+        function showNotification(msg, error=false) {
+            const area = document.getElementById('notification-area');
+            const div = document.createElement('div');
+            div.className = 'toast';
+            if(error) div.style.borderColor = 'red';
+            div.innerText = msg;
+            area.appendChild(div);
+            setTimeout(() => div.remove(), 2000);
+        }
+
+        // Standard Three.js boilerplate
+        function createBuildZone() {
+            const size = CONFIG.gridSize * CONFIG.cellSize;
+            buildGridHelper = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({visible:false}));
+            buildGridHelper.rotation.x = -Math.PI/2; buildGridHelper.position.y = 0.1; scene.add(buildGridHelper);
+            const grid = new THREE.GridHelper(size, CONFIG.gridSize, 0xffffff, 0x444444);
+            grid.position.y = 0.15; scene.add(grid);
+            const dock = new THREE.Mesh(new THREE.BoxGeometry(size+4, 1, size+4), new THREE.MeshStandardMaterial({color:0x8B4513}));
+            dock.userData.isDock = true; dock.position.y = -0.5; dock.receiveShadow = true; scene.add(dock);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(gameState.mode === 'build') updateBuildMode();
+            else if(gameState.mode === 'sail') updateSailMode();
+            
+            // Biome Fog
+            let camZ = camera.position.z;
+            if(boatGroup) camZ = boatGroup.position.z;
+            const currentBiome = BIOMES.find(b => camZ >= b.start && camZ < b.end);
+            if(currentBiome && currentBiome.name !== gameState.currentBiomeName) {
+                gameState.currentBiomeName = currentBiome.name;
+                document.getElementById('biome-text').innerText = currentBiome.name.toUpperCase();
+                document.getElementById('biome-text').classList.remove('hidden');
+                scene.fog.color.setHex(currentBiome.sky);
+                scene.background.setHex(currentBiome.sky);
+            }
+            renderer.render(scene, camera);
+        }
+
+        function updateBuildMode() {
+            const moveSpeed = 0.4;
+            const camDir = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), camAngleY);
+            const camRight = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), camAngleY);
+            const moveDir = new THREE.Vector3();
+            if(keys.w) moveDir.add(camDir); if(keys.s) moveDir.sub(camDir); if(keys.d) moveDir.add(camRight); if(keys.a) moveDir.sub(camRight);
+            
+            if(moveDir.length() > 0) {
+                moveDir.normalize().multiplyScalar(moveSpeed);
+                playerGroup.position.add(moveDir);
+                playerGroup.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+                // Anim
+                const legL = playerGroup.getObjectByName("legL");
+                const legR = playerGroup.getObjectByName("legR");
+                if(legL) legL.rotation.x = Math.sin(Date.now()*0.015)*0.8;
+                if(legR) legR.rotation.x = Math.sin(Date.now()*0.015 + Math.PI)*0.8;
+            }
+            
+            const tPos = playerGroup.position.clone().add(new THREE.Vector3(0,2,0));
+            camera.position.set(tPos.x + Math.sin(camAngleY)*camDist*Math.cos(camAngleX), tPos.y + Math.sin(camAngleX)*camDist, tPos.z + Math.cos(camAngleY)*camDist*Math.cos(camAngleX));
+            camera.lookAt(tPos);
+
+            if(keys[" "] && isGrounded) { playerVel.y = 0.6; isGrounded = false; }
+            playerVel.y -= 0.03; playerGroup.position.y += playerVel.y;
+            if(playerGroup.position.y < 0) { playerGroup.position.y=0; playerVel.y=0; isGrounded=true; }
+        }
+
+        function endGame(win) {
+            gameState.mode = 'end';
+            document.getElementById('end-screen').style.display = 'flex';
+            document.getElementById('ui-layer').style.display = 'none';
+            const earned = win ? 500 : Math.floor(boatGroup.position.z / 5);
+            document.getElementById('gold-earned').innerText = earned;
+            playerData.gold += earned;
+        }
+
+        window.launchBoat = function() {
+            if(!gameState.hasSeat) return alert("Need Pilot Seat!");
+            gameState.mode = 'sail';
+            boatGroup = new THREE.Group();
+            const box = new THREE.Box3();
+            let seatPos;
+            gameState.boatBlocks.forEach(b => { scene.remove(b.mesh); boatGroup.add(b.mesh); box.expandByObject(b.mesh); });
+            const center = new THREE.Vector3(); box.getCenter(center);
+            boatGroup.position.copy(center);
+            boatGroup.children.forEach(c => { c.position.sub(center); const b = gameState.boatBlocks.find(x=>x.mesh===c); if(b && b.type.includes('seat')) seatPos = c.position.clone(); });
+            boatGroup.position.y = 1; scene.add(boatGroup);
+            playerGroup.position.copy(seatPos).add(new THREE.Vector3(0,0.5,0));
+            scene.remove(playerGroup); boatGroup.add(playerGroup); playerGroup.rotation.set(0,0,0);
+            document.getElementById('bottom-bar').style.display='none';
+        }
+
+        window.resetBoat = function() {
+            gameState.boatBlocks.forEach(b => playerData.inventory[b.type]++);
+            gameState.boatBlocks = []; gameState.hasSeat = false;
+            if(boatGroup) { scene.remove(boatGroup); boatGroup=null; }
+            scene.add(playerGroup); playerGroup.position.set(0,0,20);
+            gameState.mode='build'; updateUI(); document.getElementById('bottom-bar').style.display='flex';
+        }
+
+        window.restartGame = function() {
+            document.getElementById('end-screen').style.display = 'none';
+            document.getElementById('ui-layer').style.display = 'flex';
+            resetBoat();
+        }
+
+        // --- Avatar / Multiplayer (Simplified from previous) ---
+        function createPlayer() {
+            if(playerGroup) scene.remove(playerGroup);
+            playerGroup = new THREE.Group();
+            buildCharacterMesh(playerGroup, playerData.colors, playerData.accessory);
+            playerGroup.position.set(0,0,20); scene.add(playerGroup);
+        }
+        function buildCharacterMesh(g, c, a) { // Minimal rebuild
+            const mat = new THREE.MeshStandardMaterial({color:c.torso});
+            const t = new THREE.Mesh(new THREE.BoxGeometry(1,1,0.5), mat); t.position.y=1.5; g.add(t);
+            const h = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.6,0.6), new THREE.MeshStandardMaterial({color:c.head})); h.position.y=2.4; g.add(h);
+            const l = new THREE.Mesh(new THREE.BoxGeometry(0.4,1,0.4), new THREE.MeshStandardMaterial({color:c.legs})); l.name="legL"; l.position.set(-0.25,0.5,0); g.add(l);
+            const r = new THREE.Mesh(new THREE.BoxGeometry(0.4,1,0.4), new THREE.MeshStandardMaterial({color:c.legs})); r.name="legR"; r.position.set(0.25,0.5,0); g.add(r);
+            // Arms
+            const la = new THREE.Mesh(new THREE.BoxGeometry(0.3,1,0.3), new THREE.MeshStandardMaterial({color:c.head})); la.name="armL"; la.position.set(-0.7,1.5,0); g.add(la);
+            const ra = new THREE.Mesh(new THREE.BoxGeometry(0.3,1,0.3), new THREE.MeshStandardMaterial({color:c.head})); ra.name="armR"; ra.position.set(0.7,1.5,0); g.add(ra);
+            if(a==1) { const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.5), new THREE.MeshStandardMaterial({color:0x111111})); hat.position.y=2.8; g.add(hat); }
+        }
+        window.updatePlayerAppearance = () => {
+            playerData.colors.head = document.getElementById('col-head').value;
+            playerData.colors.torso = document.getElementById('col-torso').value;
+            playerData.colors.legs = document.getElementById('col-legs').value;
+            createPlayer();
+        }
+        window.setAccessory = (d) => {
+            let i = playerData.accessory + d; if(i<0) i=ACCESSORIES.length-1; if(i>=ACCESSORIES.length) i=0;
+            playerData.accessory = i; document.getElementById('acc-name').innerText = ACCESSORIES[i].name; createPlayer();
+        }
+        window.setTeam = (c) => { 
+            playerData.team = c; 
+            const col = {white:0xffffff, red:0xffcccc, blue:0xccccff, green:0xccffcc}[c];
+            scene.children.forEach(o => { if(o.userData.isDock) o.material.color.setHex(col); });
+        }
+
+        // --- Shop Tabs ---
+        window.switchShopTab = function(tab) {
+            document.querySelectorAll('.menu-tab').forEach(t=>t.classList.remove('active'));
+            event.target.classList.add('active');
+            ['basic','mech','xmas','chests'].forEach(id => document.getElementById('shop-'+id).style.display='none');
+            document.getElementById('shop-'+tab).style.display = (tab==='chests')?'block':'grid';
+        }
+
+        function updateUI() {
+            document.getElementById('gold-display').innerText = playerData.gold;
+            const shopBasic = document.getElementById('shop-basic');
+            const shopMech = document.getElementById('shop-mech');
+            const shopXmas = document.getElementById('shop-xmas');
+            shopBasic.innerHTML=''; shopMech.innerHTML=''; shopXmas.innerHTML='';
+
+            for(let k in BLOCK_TYPES) {
+                const b = BLOCK_TYPES[k];
+                const div = document.createElement('div');
+                div.className = 'shop-item';
+                div.innerHTML = `<i class="fas fa-${b.icon}"></i><div class="name">${b.name}</div><div class="cost">${b.cost} G</div>`;
+                div.onclick = () => { if(playerData.gold>=b.cost) { playerData.gold-=b.cost; playerData.inventory[k]++; updateUI(); } };
+                if(b.cat === 'mech') shopMech.appendChild(div);
+                else if(b.cat === 'xmas') shopXmas.appendChild(div);
+                else shopBasic.appendChild(div);
+            }
+
+            const inv = document.getElementById('inventory-bar');
+            inv.innerHTML = '';
+            for(let k in playerData.inventory) {
+                if(playerData.inventory[k] > 0 || k==='wood') {
+                    const d = document.createElement('div');
+                    d.className = `inv-slot ${gameState.selectedBlock===k?'active':''}`;
+                    d.innerHTML = `<div class="qty">${playerData.inventory[k]}</div><i class="fas fa-${BLOCK_TYPES[k].icon} text-white"></i>`;
+                    d.onclick = () => { gameState.selectedBlock = k; updateUI(); };
+                    inv.appendChild(d);
+                }
+            }
+        }
+
+        function setupMultiplayer() {
+            if(!userId) return;
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'players'), (snap) => {
+                const list = document.getElementById('player-list-content');
+                list.innerHTML = ''; 
+                snap.forEach(doc => {
+                    if(doc.id === userId) return;
+                    const d = doc.data();
+                    const row = document.createElement('div');
+                    row.className = 'player-row';
+                    row.innerHTML = `<div>Player ${doc.id.substring(0,4)}</div>`;
+                    list.appendChild(row);
+                    if(!remotePlayers[doc.id]) {
+                        const g = new THREE.Group();
+                        buildCharacterMesh(g, d.colors||{}, 0);
+                        scene.add(g);
+                        remotePlayers[doc.id] = {mesh:g, target: new THREE.Vector3()};
+                    }
+                    remotePlayers[doc.id].target.set(d.x, d.y, d.z);
+                });
+            }, (e) => {}); 
+            setInterval(() => {
+                if(!playerGroup) return;
+                const p = playerGroup.position;
+                setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'players', userId), {
+                    x:p.x, y:p.y, z:p.z, colors:playerData.colors, team:playerData.team,
+                    timestamp: serverTimestamp()
+                }).catch(()=>{});
+            }, 500);
+        }
+
+        window.toggleMainMenu = () => document.getElementById('main-menu').style.display = (document.getElementById('main-menu').style.display === 'flex') ? 'none' : 'flex';
+        window.toggleMenu = (id) => document.getElementById(id).classList.toggle('open');
+        
+        function onResize() { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        function onMouseMove(e) { 
+            mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1; 
+            if(isDragging) { camAngleY -= (e.clientX-prevMouse.x)*0.005; camAngleX -= (e.clientY-prevMouse.y)*0.005; }
+            prevMouse = {x:e.clientX, y:e.clientY};
+        }
+        function onMouseUp() { isDragging = false; }
+        function handleKey(e, down) {
+            const k = e.key.toLowerCase();
+            keys[k] = down;
+            if(k === 'm' && down) toggleMainMenu();
+        }
+
+        init();
+    </script>
+</body>
+</html>
