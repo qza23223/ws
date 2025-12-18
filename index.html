@@ -348,14 +348,15 @@
             } else {
                 console.log("GitHub Mode: No injected config found. Multiplayer will be disabled unless you configure it below.");
                 // REPLACE THE OBJECT BELOW WITH YOUR FIREBASE CONFIG IF HOSTING ON GITHUB
-                firebaseConfig = {
-                    // apiKey: "YOUR_API_KEY",
-                    // authDomain: "YOUR_PROJECT.firebaseapp.com",
-                    // projectId: "YOUR_PROJECT_ID",
-                    // storageBucket: "YOUR_PROJECT.appspot.com",
-                    // messagingSenderId: "SENDER_ID",
-                    // appId: "APP_ID"
-                };
+                 const firebaseConfig = {
+    apiKey: "AIzaSyBII8SZ6t9lE3_MdJ-Xpx0Jfnm9b660qx4",
+    authDomain: "axads-2129f.firebaseapp.com",
+    projectId: "axads-2129f",
+    storageBucket: "axads-2129f.firebasestorage.app",
+    messagingSenderId: "307294974772",
+    appId: "1:307294974772:web:1a7a079abfee338456ab61",
+    measurementId: "G-JY88EKGGJR"
+  };
             }
         } catch (e) { console.log("Config setup warning"); }
 
