@@ -211,6 +211,10 @@
             <div class="p-4 bg-slate-800 text-white font-bold border-b border-slate-700">MULTIPLAYER LOBBY</div>
             <div class="player-list" id="player-list-content">
                 <!-- Players injected here -->
+                <div style="text-align:center; padding:20px; color:#666;">
+                    Connecting to server...<br>
+                    <span style="font-size:10px;">(If stuck, multiplayer may not be configured)</span>
+                </div>
             </div>
             <div class="p-4 bg-slate-900 border-t border-slate-700">
                 <div class="text-xs text-gray-400 mb-1">REDEEM CODE</div>
@@ -331,17 +335,46 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Firebase Init ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // --- Firebase Config & Setup ---
+        let firebaseConfig = {};
+        
+        // Handle Configuration logic for GitHub portability
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+            } else {
+                console.log("GitHub Mode: No injected config found. Multiplayer will be disabled unless you configure it below.");
+                // REPLACE THE OBJECT BELOW WITH YOUR FIREBASE CONFIG IF HOSTING ON GITHUB
+                firebaseConfig = {
+                    // apiKey: "YOUR_API_KEY",
+                    // authDomain: "YOUR_PROJECT.firebaseapp.com",
+                    // projectId: "YOUR_PROJECT_ID",
+                    // storageBucket: "YOUR_PROJECT.appspot.com",
+                    // messagingSenderId: "SENDER_ID",
+                    // appId: "APP_ID"
+                };
+            }
+        } catch (e) { console.log("Config setup warning"); }
 
-        let userId = null;
+        let app, auth, db, userId;
+        let multiplayerEnabled = false;
+        
+        // Initialize Firebase safely
+        try {
+            if (firebaseConfig.apiKey) {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                multiplayerEnabled = true;
+            }
+        } catch (e) {
+            console.log("Firebase init failed (Single Player Mode Active):", e);
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         let remotePlayers = {}; 
 
         // --- Configuration ---
@@ -441,12 +474,32 @@
 
         // --- Initialization ---
         async function init() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-                else await signInAnonymously(auth);
-                userId = auth.currentUser.uid;
-                setupMultiplayer();
-            } catch (e) { console.error("Auth error", e); }
+            // Authentication attempt (Environment or Anonymous)
+            if (multiplayerEnabled) {
+                try {
+                    // Check for environment token first (Canvas environment)
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        // This function must be imported dynamically or available globally
+                        // simplified: we'll try anonymous if custom fails or isn't available
+                        try {
+                            const { signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } catch(e) { await signInAnonymously(auth); }
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    
+                    if (auth.currentUser) {
+                        userId = auth.currentUser.uid;
+                        setupMultiplayer();
+                    }
+                } catch (e) { 
+                    console.error("Auth error (Playing Offline):", e); 
+                    document.getElementById('player-list-content').innerHTML = "<div style='padding:20px; text-align:center;'>Offline Mode</div>";
+                }
+            } else {
+                document.getElementById('player-list-content').innerHTML = "<div style='padding:20px; text-align:center;'>Single Player Mode<br>(Config missing)</div>";
+            }
 
             scene = new THREE.Scene();
             scene.background = new THREE.Color(CONFIG.fogColor);
@@ -518,8 +571,7 @@
             }
             else if(type==='tnt') {
                 const t = new THREE.Mesh(new THREE.BoxGeometry(1.9,1.9,1.9), new THREE.MeshStandardMaterial({color:0xff0000}));
-                mesh = t; // overwrite
-                // Text texture would go here, simple red box for now
+                mesh = t; 
             }
             
             mesh.castShadow = true;
@@ -877,6 +929,13 @@
             boatGroup.position.y = 1; scene.add(boatGroup);
             playerGroup.position.copy(seatPos).add(new THREE.Vector3(0,0.5,0));
             scene.remove(playerGroup); boatGroup.add(playerGroup); playerGroup.rotation.set(0,0,0);
+            
+            // Set sitting pose
+            const legL = playerGroup.getObjectByName("legL");
+            const legR = playerGroup.getObjectByName("legR");
+            if(legL) legL.rotation.x = -1.5;
+            if(legR) legR.rotation.x = -1.5;
+
             document.getElementById('bottom-bar').style.display='none';
         }
 
@@ -885,6 +944,13 @@
             gameState.boatBlocks = []; gameState.hasSeat = false;
             if(boatGroup) { scene.remove(boatGroup); boatGroup=null; }
             scene.add(playerGroup); playerGroup.position.set(0,0,20);
+            
+            // Reset pose
+            ["legL","legR","armL","armR"].forEach(n=> {
+                const p = playerGroup.getObjectByName(n);
+                if(p) p.rotation.x = 0;
+            });
+
             gameState.mode='build'; updateUI(); document.getElementById('bottom-bar').style.display='flex';
         }
 
@@ -968,7 +1034,7 @@
         }
 
         function setupMultiplayer() {
-            if(!userId) return;
+            if(!multiplayerEnabled || !userId) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'players'), (snap) => {
                 const list = document.getElementById('player-list-content');
                 list.innerHTML = ''; 
@@ -987,7 +1053,9 @@
                     }
                     remotePlayers[doc.id].target.set(d.x, d.y, d.z);
                 });
-            }, (e) => {}); 
+            }, (e) => {
+                console.log("Multiplayer sync error (Permission or Network):", e);
+            }); 
             setInterval(() => {
                 if(!playerGroup) return;
                 const p = playerGroup.position;
